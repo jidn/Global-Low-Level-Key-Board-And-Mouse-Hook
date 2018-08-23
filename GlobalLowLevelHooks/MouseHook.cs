@@ -17,9 +17,10 @@ namespace GlobalLowLevelHooks
 
         /// <summary>
         /// Function to be called when defined even occurs
+        /// Returns true if we want the mouse action to propogate
         /// </summary>
         /// <param name="mouseStruct">MSLLHOOKSTRUCT mouse structure</param>
-        public delegate void MouseHookCallback(MSLLHOOKSTRUCT mouseStruct);
+        public delegate bool MouseHookCallback(MSLLHOOKSTRUCT mouseStruct);
 
         #region Events
         public event MouseHookCallback LeftButtonDown;
@@ -37,6 +38,11 @@ namespace GlobalLowLevelHooks
         /// Low level mouse hook's ID
         /// </summary>
         private IntPtr hookID = IntPtr.Zero;
+
+        /// <summary>
+        /// Are hooks currently active.
+        /// </summary>
+        public bool Active { get { return (hookID != IntPtr.Zero); } }
 
         /// <summary>
         /// Install low level mouse hook
@@ -87,33 +93,31 @@ namespace GlobalLowLevelHooks
             // parse system messages
             if (nCode >= 0)
             {
-                if (MouseMessages.WM_LBUTTONDOWN == (MouseMessages)wParam)
-                    if (LeftButtonDown != null)
-                        LeftButtonDown((MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT)));
-                if (MouseMessages.WM_LBUTTONUP == (MouseMessages)wParam)
-                    if (LeftButtonUp != null)
-                        LeftButtonUp((MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT)));
-                if (MouseMessages.WM_RBUTTONDOWN == (MouseMessages)wParam)
-                    if (RightButtonDown != null)
-                        RightButtonDown((MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT)));
-                if (MouseMessages.WM_RBUTTONUP == (MouseMessages)wParam)
-                    if (RightButtonUp != null)
-                        RightButtonUp((MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT)));
-                if (MouseMessages.WM_MOUSEMOVE == (MouseMessages)wParam)
-                    if (MouseMove != null)
-                        MouseMove((MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT)));
-                if (MouseMessages.WM_MOUSEWHEEL == (MouseMessages)wParam)
-                    if (MouseWheel != null)
-                        MouseWheel((MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT)));
-                if (MouseMessages.WM_LBUTTONDBLCLK == (MouseMessages)wParam)
-                    if (DoubleClick != null)
-                        DoubleClick((MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT)));
-                if (MouseMessages.WM_MBUTTONDOWN == (MouseMessages)wParam)
-                    if (MiddleButtonDown != null)
-                        MiddleButtonDown((MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT)));
-                if (MouseMessages.WM_MBUTTONUP == (MouseMessages)wParam)
-                    if (MiddleButtonUp != null)
-                        MiddleButtonUp((MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT)));
+                bool callNextHook = true;
+                MSLLHOOKSTRUCT mouse_data = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+                if (MouseMessages.WM_MOUSEWHEEL == (MouseMessages)wParam && MouseWheel != null)
+                        callNextHook = MouseWheel(mouse_data);
+                else if (MouseMessages.WM_LBUTTONDOWN == (MouseMessages)wParam && LeftButtonDown != null)
+                        callNextHook = LeftButtonDown(mouse_data);
+                else if (MouseMessages.WM_LBUTTONUP == (MouseMessages)wParam && LeftButtonUp != null)
+                        callNextHook = LeftButtonUp(mouse_data);
+                else if (MouseMessages.WM_RBUTTONDOWN == (MouseMessages)wParam && RightButtonDown != null)
+                        callNextHook = RightButtonDown(mouse_data);
+                else if (MouseMessages.WM_RBUTTONUP == (MouseMessages)wParam && RightButtonUp != null)
+                        callNextHook = RightButtonUp(mouse_data);
+                else if (MouseMessages.WM_MOUSEMOVE == (MouseMessages)wParam && MouseMove != null)
+                        callNextHook = MouseMove(mouse_data);
+                else if (MouseMessages.WM_LBUTTONDBLCLK == (MouseMessages)wParam && DoubleClick != null)
+                        callNextHook = DoubleClick(mouse_data);
+                else if (MouseMessages.WM_MBUTTONDOWN == (MouseMessages)wParam && MiddleButtonDown != null)
+                        callNextHook = MiddleButtonDown(mouse_data);
+                else if (MouseMessages.WM_MBUTTONUP == (MouseMessages)wParam && MiddleButtonUp != null)
+                        callNextHook = MiddleButtonUp(mouse_data);
+                if (callNextHook == false)
+                {
+                    Debug.Write("-");
+                    return new IntPtr(-1);
+                }
             }
             return CallNextHookEx(hookID, nCode, wParam, lParam);
         }

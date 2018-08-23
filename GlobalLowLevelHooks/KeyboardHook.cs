@@ -6,6 +6,7 @@ namespace GlobalLowLevelHooks
 {
     /// <summary>
     /// Class for intercepting low level keyboard hooks
+    /// You must finish with in registr LowLevelHooksTimeout
     /// </summary>
     public class KeyboardHook
     {
@@ -215,6 +216,7 @@ namespace GlobalLowLevelHooks
             PA1 = 0xFD,         // PA1 key
             OEM_CLEAR = 0xFE    // Clear key
         }
+        private const int WH_KEYBOARD_LL = 13;
 
         /// <summary>
         /// Internal callback processing function
@@ -226,7 +228,7 @@ namespace GlobalLowLevelHooks
         /// Function that will be called when defined events occur
         /// </summary>
         /// <param name="key">VKeys</param>
-        public delegate void KeyboardHookCallback(VKeys key);
+        public delegate bool KeyboardHookCallback(VKeys key);
 
         #region Events
         public event KeyboardHookCallback KeyDown;
@@ -263,29 +265,31 @@ namespace GlobalLowLevelHooks
         private IntPtr SetHook(KeyboardHookHandler proc)
         {
             using (ProcessModule module = Process.GetCurrentProcess().MainModule)
-                return SetWindowsHookEx(13, proc, GetModuleHandle(module.ModuleName), 0);
+                return SetWindowsHookEx(WH_KEYBOARD_LL, proc, GetModuleHandle(module.ModuleName), 0);
         }
 
-        /// <summary>
-        /// Default hook call, which analyses pressed keys
-        /// </summary>
         private IntPtr HookFunc(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0)
             {
                 int iwParam = wParam.ToInt32();
+                VKeys key = (VKeys)Marshal.ReadInt32(lParam);
+                bool callNextHookEx = true;
 
-                if ((iwParam == WM_KEYDOWN || iwParam == WM_SYSKEYDOWN))
-                    if (KeyDown != null)
-                        KeyDown((VKeys)Marshal.ReadInt32(lParam));
-                if ((iwParam == WM_KEYUP || iwParam == WM_SYSKEYUP))
-                    if (KeyUp != null)
-                        KeyUp((VKeys)Marshal.ReadInt32(lParam));
+                if ((iwParam == WM_KEYDOWN || iwParam == WM_SYSKEYDOWN) && KeyDown != null)
+                {
+                    Debug.WriteLine(key);
+                    callNextHookEx = KeyDown(key);
+                }
+                if ((iwParam == WM_KEYUP || iwParam == WM_SYSKEYUP) && KeyUp != null)
+                    callNextHookEx = KeyUp(key);
+
+                if (!callNextHookEx)
+                    return new IntPtr(-1);
             }
-
             return CallNextHookEx(hookID, nCode, wParam, lParam);
         }
-
+        
         /// <summary>
         /// Destructor. Unhook current hook
         /// </summary>
